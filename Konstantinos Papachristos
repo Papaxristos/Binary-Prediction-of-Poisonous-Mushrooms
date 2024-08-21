@@ -1,0 +1,225 @@
+import os
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import matthews_corrcoef
+from google.colab import drive
+import os
+import shutil
+
+# Checks if Google Drive is already connected and disconnects if necessary
+if os.path.isdir('/content/drive'):
+    print("Unmounting existing /content/drive...")
+    drive.flush_and_unmount()
+    if os.path.exists('/content/drive'):
+        shutil.rmtree('/content/drive')  # Deletes the existing folder
+
+# We connect Google Drive
+drive.mount('/content/drive', force_remount=True)
+
+# File paths in Google Drive
+file_paths = {
+    "train": '/content/drive/MyDrive/Python Projects/Mushrooms/train.csv',
+    "test": '/content/drive/MyDrive/Python Projects/Mushrooms/test.csv',
+    "submission": '/content/drive/MyDrive/Python Projects/Mushrooms/submission.csv',
+    
+}
+
+def check_file_exists(file_path):
+    if not os.path.isfile(file_path):
+        print(f"Warning: File not found: {file_path}")
+    else:
+        print(f"File found: {file_path}")
+
+# Check if the files exist
+for file_key, file_path in file_paths.items():
+    check_file_exists(file_path)
+
+# Optional: If you want to see the contents of the folder
+folder_path = '/content/drive/MyDrive/Python Projects/Mushrooms'
+print("Contents of folder:", os.listdir(folder_path))
+# Load data with more granular error handling
+def load_data(file_path, file_name):
+    try:
+        data = pd.read_csv(file_path)
+        print(f"{file_name} loaded successfully with shape {data.shape}")
+        return data
+    except FileNotFoundError:
+        raise FileNotFoundError(f"{file_name} not found at {file_path}")
+    except pd.errors.EmptyDataError:
+        raise ValueError(f"{file_name} is empty.")
+    except pd.errors.ParserError:
+        raise ValueError(f"Parsing error in {file_name}.")
+    except Exception as e:
+        raise RuntimeError(f"An unexpected error occurred while loading {file_name}: {e}")
+
+# Loading data
+train_data = load_data(file_paths['train'], "Train Data")
+test_data = load_data(file_paths['test'], "Test Data")
+
+# Data exploration
+def explore_data(data, data_name, nrows=5):
+    print(f"\n{data_name} Head:\n", data.head(nrows))
+    print(f"\n{data_name} Tail:\n", data.tail(nrows))
+    print(f"\n{data_name} Info:\n")
+    data.info()
+    print(f"\nMissing values in {data_name}:\n", data.isnull().sum())
+
+# Data exploration
+explore_data(train_data, "Train Data")
+explore_data(test_data, "Test Data")
+# Separation of attributes and tags
+label_column = 'class'  # We call the column the label for flexibility
+
+if label_column not in train_data.columns:
+    raise KeyError(f"Train data must contain '{label_column}' column")
+
+# Separation of features (X) and label (y)
+X = train_data.drop(columns=[label_column])
+y = train_data[label_column]
+
+# Check if attributes and tags are empty
+if X.empty or y.empty:
+    raise ValueError("Either features or labels are empty. Check your data.")
+
+# Locating categorical and numerical features
+categorical_features = X.select_dtypes(include=['object']).columns
+numerical_features = X.select_dtypes(include=['number']).columns
+
+# Print feature separation information
+print(f"Number of categorical features: {len(categorical_features)}")
+print(f"Number of numerical features: {len(numerical_features)}")
+print(f"Total number of features: {X.shape[1]}")
+
+# Additionally, print the attribute names for
+confirmation (optional)
+print("\nCategorical Features:", list(categorical_features))
+print("Numerical Features:", list(numerical_features))
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.linear_model import LogisticRegression  # Or another model of your choice
+from joblib import dump
+import numpy as np
+
+# Creating transformers
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', Pipeline(steps=[
+            ('imputer', SimpleImputer(strategy='mean')),
+            ('scaler', StandardScaler())
+        ]), numerical_features),
+        ('cat', Pipeline(steps=[
+            ('imputer', SimpleImputer(strategy='most_frequent')),
+            ('onehot', OneHotEncoder(handle_unknown='ignore'))
+        ]), categorical_features)
+    ])
+
+# Define initial model with Logistic Regression
+model = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('classifier', LogisticRegression(random_state=42, max_iter=1000))  # Example of hyperparameters
+])
+
+# Training the model with the data
+model.fit(X, y)
+
+# Evaluation of the model
+accuracy = model.score(X, y)
+print(f"Training accuracy: {accuracy:.4f}")
+
+# Save the trained model for future use
+model_path = '/content/drive/MyDrive/Python Projects/Mushrooms/trained_model.joblib'
+dump(model, model_path)
+print(f"Trained model saved at: {model_path}")
+import pandas as pd
+
+# Check if the 'id' column exists
+if 'id' not in test_data.columns:
+    raise KeyError("Test data must contain 'id' column")
+
+# Remove the 'id' column from the data
+X_test = test_data.drop(columns=['id'], errors='ignore')  # Using errors='ignore' to avoid errors if it does not exist
+
+# Ensure that the columns of X_test include only the expected columns
+try:
+    expected_columns = model.feature_names_in_
+except AttributeError:
+    raise RuntimeError("The model does not provide the feature_names_in_ attribute. Ensure that you have the correct columns.")
+
+# Ensure that the columns of X_test include the columns expected by the model
+missing_columns = [col for col in expected_columns if col not in X_test.columns]
+
+# Add the missing columns with zeros (or other default values)
+for column in missing_columns:
+    X_test[column] = 0
+
+# Reorder columns to match the model's expected columns
+X_test = X_test[expected_columns]
+
+# Predictions on the test set
+try:
+    test_predictions = model.predict(X_test)
+except Exception as e:
+    raise RuntimeError(f"An error occurred during prediction: {e}")
+
+# Define the submission file path
+submission_path = '/content/drive/MyDrive/Python Projects/Mushrooms/submission.csv'
+
+# Create submission file
+submission = pd.DataFrame({
+    'id': test_data['id'],
+    'class': test_predictions
+})
+
+# Save the submission file
+submission.to_csv(submission_path, index=False)
+print("The submission file has been successfully created.")
+import os
+import pandas as pd
+
+# Path settings
+submission_dir = '/content/drive/MyDrive/Python Projects/Mushrooms'
+submission_path = os.path.join(submission_dir, 'submission.csv')
+score_file_path = os.path.join(submission_dir, 'mcc_score.csv')
+
+# Create the directory if it does not exist
+os.makedirs(submission_dir, exist_ok=True)
+
+# Test data processing
+def preprocess_test_data(test_data, model):
+    # Check if the 'id' column exists
+    if 'id' not in test_data.columns:
+        raise KeyError("Test data must contain 'id' column")
+
+    # Remove the 'id' column from the data
+    X_test = test_data.drop(columns=['id'], errors='ignore')  # Using errors='ignore' to avoid errors if it does not exist
+
+    # Ensure that the columns of X_test include the expected columns
+    try:
+        expected_columns = model.feature_names_in_
+    except AttributeError:
+        raise RuntimeError("The model does not provide the feature_names_in_ attribute. Ensure that you have the correct columns.")
+
+    print("Expected model columns:", expected_columns)
+
+    # Ensure that the columns of X_test include the columns expected by the model
+    missing_columns = [col for col in expected_columns if col not in X_test.columns]
+
+    # Add the missing columns with zeros (or other default values)
+    for column in missing_columns:
+        X_test[column] = 0  # You can use another default value here if needed
+
+    # Reorder columns to match the model's expected columns
+    X_test = X_test[expected_columns]
+
+    return X_test
+
+# Example usage of the function
+X_test = preprocess_test_data(test_data, model)
