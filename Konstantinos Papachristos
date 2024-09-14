@@ -8,42 +8,29 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import matthews_corrcoef
-from google.colab import drive
-import os
-import shutil
+from google.colab import files
 
-# Checks if Google Drive is already connected and disconnects if necessary
-if os.path.isdir('/content/drive'):
-    print("Unmounting existing /content/drive...")
-    drive.flush_and_unmount()
-    if os.path.exists('/content/drive'):
-        shutil.rmtree('/content/drive')  # Deletes the existing folder
+def upload_file():
+    uploaded = files.upload()
+    for filename in uploaded.keys():
+        print(f"Uploaded file: {filename}")
+        return filename
 
-# We connect Google Drive
-drive.mount('/content/drive', force_remount=True)
+# Upload files manually
+print("Please upload your train.csv file:")
+train_file = upload_file()
 
-# File paths in Google Drive
+print("Please upload your test.csv file:")
+test_file = upload_file()
+
+print("Please upload your submission.csv file:")
+submission_file = upload_file()
+
+# Define file paths
 file_paths = {
-    "train": '/content/drive/MyDrive/Python Projects/Mushrooms/train.csv',
-    "test": '/content/drive/MyDrive/Python Projects/Mushrooms/test.csv',
-    "submission": '/content/drive/MyDrive/Python Projects/Mushrooms/submission.csv',
-    
-}
-# Checks if Google Drive is already mounted and unmounts if necessary
-if os.path.isdir('/content/drive'):
-    print("Unmounting the existing /content/drive...")
-    drive.flush_and_unmount()
-    if os.path.exists('/content/drive'):
-        shutil.rmtree('/content/drive')  # Deletes the existing folder
-
-# Mount Google Drive
-drive.mount('/content/drive', force_remount=True)
-
-# File paths in Google Drive
-file_paths = {
-    "train": '/content/drive/MyDrive/Python Projects/Mushrooms/train.csv',
-    "test": '/content/drive/MyDrive/Python Projects/Mushrooms/test.csv',
-    "submission": '/content/drive/MyDrive/Python Projects/Mushrooms/submission.csv',
+    "train": train_file,
+    "test": test_file,
+    "submission": submission_file
 }
 def check_file_exists(file_path):
     if not os.path.isfile(file_path):
